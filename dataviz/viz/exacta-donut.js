@@ -1,19 +1,34 @@
 // ------------------------ \\
 // ----- EXACTA DONUT ----- \\
 // ------------------------ \\
-var ExactaDonut = function ExactaDonut(options) {
-	// TODO throw errors if required options are invalid
-	this._init(options);
+var ExactaDonut = function ExactaDonut(){}
+
+ExactaDonut.prototype.start = function(options) {
+	try {
+		// Validate options
+		if (!(typeof options["name"] === "string") || options["name"].length < 1) throw "Viz requires a name";
+		if (!(typeof options["container"]) === "string" || options["container"].length < 1) throw "Viz requires a container";
+		if (!$("#"+options["container"])[0]) throw "Container with id #"+options["container"]+" could not be found";
+		if (!(typeof options["type"] === "string") || options["type"].length < 1) throw "Viz requires a race type (THOROUGHBRED, etc)";
+		if (isNaN(parseInt(options["numRunners"])) || parseInt(options["numRunners"]) < 2) throw "Viz requires numRunners >= 2"
+		if (!(options["data"] instanceof Object)) throw "Viz requires a data Object"
+		this._init(options);
+		return {};
+	} catch(e) {
+		return {error: e};
+	}
 }
 
 // Rebuild exacta donut with full animation (runner focus change)
 // Returns status object including odds values for focussed runner
 ExactaDonut.prototype.change = function(bettingInterestNumber) {
 	try {
-		if (this.runner != String(bettingInterestNumber) && bettingInterestNumber <= this.numRunners && bettingInterestNumber > 0) {
-			this.runner = String(bettingInterestNumber);
-			this._fullAnimate();
-		}
+		if (this.runner == String(bettingInterestNumber)) throw "Focussed runner is same as selected runner";
+		if (isNaN(parseInt(bettingInterestNumber))) throw "Selected runner does not exist";
+		if (parseInt(bettingInterestNumber) > this.numRunners) throw "Selected runner does not exist";
+		if (parseInt(bettingInterestNumber) <= 0) throw "Selected runner does not exist";
+		this.runner = String(bettingInterestNumber);
+		this._fullAnimate();
 		return this._status();
 	} catch(e) {
 		return this._status(e);
@@ -24,6 +39,7 @@ ExactaDonut.prototype.change = function(bettingInterestNumber) {
 // Returns status object including odds values for focussed runner
 ExactaDonut.prototype.update = function(oddsJson) {
 	try {
+		if (!(oddsJson instanceof Object)) throw "Data update must be an Object";
 		this.lastUpdated = new Date();
 		this.data = oddsJson;
 		this._partialAnimate();
@@ -92,15 +108,16 @@ ExactaDonut.prototype._build = function() {
 		.attr("cy",this.rInner)
 		.attr("r",this.rInner+0.5)
 		.attr("transform","translate("+(this.rOuter-this.rInner)+","+(this.rOuter-this.rInner)+")")
-		.attr("fill",function(){return DataViz.saddleCloth(self.type,self.runner)});
+		.style("fill",function(){return DataViz.saddleCloth(self.type,self.runner)});
 	exa.append("svg:text")
 		.attr("class","exaText")
 		.attr("dx",function(){return self.width/2})
 		.attr("dy",function(){return self.height/2})
-		.attr("font-size",function(){return self.rInner+"px"})
-		.attr("fill",function(d,i){return DataViz.saddleClothText(self.type,self.runner)})
-		.attr("opacity",1)
-		.attr("style","text-anchor:middle;dominant-baseline:central;")
+		.style("font-size",function(){return self.rInner+"px"})
+		.style("fill",function(d,i){return DataViz.saddleClothText(self.type,self.runner)})
+		.style("opacity",1)
+		.style("text-anchor","middle")
+		.style("dominant-baseline","central")
 	  .text(this.runner);
 	
 	// create paths
@@ -110,9 +127,9 @@ ExactaDonut.prototype._build = function() {
 		.attr("class","exaArc")
 		.attr("transform","translate("+this.rOuter+","+this.rOuter+")")
 		.append("svg:path")
-		.attr("fill",function(d,i){return DataViz.saddleCloth(self.type,i)})
 		.attr("d",d3.svg.arc())
-		.attr("id",function(d,i){return i});
+		.attr("id",function(d,i){return i})
+		.style("fill",function(d,i){return DataViz.saddleCloth(self.type,i)});
 }
 
 // trigger full animation sequence (fracture -> shuffle -> reunite)
@@ -132,14 +149,14 @@ ExactaDonut.prototype._fullAnimate = function() {
 	// path fracture animation definition
 	function fracture(d,i) {
 		d3.select(this).transition().duration(500)
-			.attrTween("d",tween(radiusMod()))
+			.attrTween("d",self._tween(radiusMod()))
 			.each("end",shuffle);
 	}
 
 	// paht shuffle animation definition
 	function shuffle(d,i) {
 		d3.select(this).transition().duration(500)
-			.attrTween("d",tween({
+			.attrTween("d",self._tween({
 				startAngle: d.next.startAngle,
 				endAngle: d.next.endAngle
 			}))
@@ -149,7 +166,7 @@ ExactaDonut.prototype._fullAnimate = function() {
 	// path reunite animation definition
 	function reunite(d,i) {
 		d3.select(this).transition().duration(500)
-			.attrTween("d",tween({
+			.attrTween("d",self._tween({
 				innerRadius: self.rInner,
 				outerRadius: self.rOuter
 			}));
@@ -169,32 +186,21 @@ ExactaDonut.prototype._fullAnimate = function() {
 		}
 	}
 	
-	// animation tweening
-	function tween(b) {
-		return function(a) {
-			var i = d3.interpolate(a,b);
-			for (var key in b) a[key] = b[key];
-			return function(t) {
-				return d3.svg.arc()(i(t));
-			}
-		}
-	}
-	
 	// focussed-runner animation definition
 	function focussedRunnerAnimate() {
 		// morph circle fill
 		d3.selectAll("circle.exaCircle").transition().duration(1500)
-			.attr("fill",function(){return DataViz.saddleCloth(self.type,self.runner)});
+			.style("fill",function(){return DataViz.saddleCloth(self.type,self.runner)});
 		// animate text: fade out -> change content and fill -> fade in
 		d3.selectAll("text.exaText").transition().duration(700)
-			.attr("opacity",0)
+			.style("opacity",0)
 			.each("end",function() {
 				d3.select(this).transition().duration(100)
-					.attr("fill",function(d,i){return DataViz.saddleClothText(self.type,self.runner)})
+					.style("fill",function(d,i){return DataViz.saddleClothText(self.type,self.runner)})
 					.text(self.runner)
 					.each("end",function() {
 						d3.select(this).transition().duration(700)
-							.attr("opacity",1);
+							.style("opacity",1);
 					});
 			});
 	}
@@ -214,20 +220,20 @@ ExactaDonut.prototype._partialAnimate = function() {
 	// reposition animation definition (partial)
 	function reposition(d,i) {
 		d3.select(this).transition().duration(500)
-			.attrTween("d",tween({
+			.attrTween("d",self._tween({
 				startAngle: d.next.startAngle,
 				endAngle: d.next.endAngle
 			}));
 	}
-	
-	// animation tweening
-	function tween(b) {
-		return function(a) {
-			var i = d3.interpolate(a,b);
-			for (var key in b) a[key] = b[key];
-			return function(t) {
-				return d3.svg.arc()(i(t));
-			}
+}
+
+// animation tweening
+ExactaDonut.prototype._tween = function(b) {
+	return function(a) {
+		var i = d3.interpolate(a,b);
+		for (var key in b) a[key] = b[key];
+		return function(t) {
+			return d3.svg.arc()(i(t));
 		}
 	}
 }
@@ -270,6 +276,6 @@ ExactaDonut.prototype._status = function(e) {
 		data: this.data,
 		error: e,
 		lastUpdated: this.lastUpdated,
-		status: (e ? false : true)
+		runner: this.runner
 	}
 }

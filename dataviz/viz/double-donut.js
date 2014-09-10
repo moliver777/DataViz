@@ -1,19 +1,35 @@
 // ------------------------ \\
 // ----- DOUBLE DONUT ----- \\
 // ------------------------ \\
-var DoubleDonut = function DoubleDonut(options) {
-	// TODO throw errors if required options are invalid
-	this._init(options);
+var DoubleDonut = function DoubleDonut(){}
+
+DoubleDonut.prototype.start = function(options) {
+	try {
+		// Validate options
+		if (!(typeof options["name"] === "string") || options["name"].length < 1) throw "Viz requires a name";
+		if (!(typeof options["container"]) === "string" || options["container"].length < 1) throw "Viz requires a container";
+		if (!$("#"+options["container"])[0]) throw "Container with id #"+options["container"]+" could not be found";
+		if (!(typeof options["type"] === "string") || options["type"].length < 1) throw "Viz requires a race type (THOROUGHBRED, etc)";
+		if (isNaN(parseInt(options["numRunners1"])) || parseInt(options["numRunners1"]) < 2) throw "Viz requires numRunners1 >= 2"
+		if (isNaN(parseInt(options["numRunners2"])) || parseInt(options["numRunners2"]) < 2) throw "Viz requires numRunners2 >= 2"
+		if (!(options["data"] instanceof Object)) throw "Viz requires a data Object"
+		this._init(options);
+		return {};
+	} catch(e) {
+		return {error: e};
+	}
 }
 
 // Rebuild exacta donut with full animation (runner focus change)
 // Returns status object including odds values for focussed runner
 DoubleDonut.prototype.change = function(bettingInterestNumber) {
 	try {
-		if (this.runner != String(bettingInterestNumber) && bettingInterestNumber <= this.numRunners1 && bettingInterestNumber > 0) {
-			this.runner = String(bettingInterestNumber);
-			this._fullAnimate();
-		}
+		if (this.runner == String(bettingInterestNumber)) throw "Focussed runner is same as selected runner";
+		if (isNaN(parseInt(bettingInterestNumber))) throw "Selected runner does not exist";
+		if (parseInt(bettingInterestNumber) > this.numRunners1) throw "Selected runner does not exist";
+		if (parseInt(bettingInterestNumber) <= 0) throw "Selected runner does not exist";
+		this.runner = String(bettingInterestNumber);
+		this._fullAnimate();
 		return this._status();
 	} catch(e) {
 		return this._status(e);
@@ -24,6 +40,7 @@ DoubleDonut.prototype.change = function(bettingInterestNumber) {
 // Returns status object including odds values for focussed runner
 DoubleDonut.prototype.update = function(oddsJson) {
 	try {
+		if (!(oddsJson instanceof Object)) throw "Odds update must be an Object";
 		this.lastUpdated = new Date();
 		this.data = oddsJson;
 		this._partialAnimate();
@@ -81,40 +98,41 @@ DoubleDonut.prototype._build = function() {
 	this.originDataset = this._dataset(); // format initial dataset
 	
 	// create svg canvas
-	var exa = d3.select("#"+$(this.container).attr('id'))
+	var dbl = d3.select("#"+$(this.container).attr('id'))
 		.append("svg:svg")
 		.attr("width",this.width)
 		.attr("height",this.height)
 		.attr("id","doubleSvg"+this.name);
 	
 	// create focussed runner indicator circle and text
-	exa.append("svg:circle")
+	dbl.append("svg:circle")
 		.attr("class","dblCircle")
 		.attr("cx",this.rInner)
 		.attr("cy",this.rInner)
 		.attr("r",this.rInner+0.5)
 		.attr("transform","translate("+(this.rOuter-this.rInner)+","+(this.rOuter-this.rInner)+")")
-		.attr("fill",function(){return DataViz.saddleCloth(self.type,self.runner)});
-	exa.append("svg:text")
+		.style("fill",function(){return DataViz.saddleCloth(self.type,self.runner)});
+	dbl.append("svg:text")
 		.attr("class","dblText")
 		.attr("dx",function(){return self.width/2})
 		.attr("dy",function(){return self.height/2})
-		.attr("font-size",function(){return self.rInner+"px"})
-		.attr("fill",function(d,i){return DataViz.saddleClothText(self.type,self.runner)})
-		.attr("opacity",1)
-		.attr("style","text-anchor:middle;dominant-baseline:central;")
+		.style("font-size",function(){return self.rInner+"px"})
+		.style("fill",function(d,i){return DataViz.saddleClothText(self.type,self.runner)})
+		.style("opacity",1)
+		.style("text-anchor","middle")
+		.style("dominant-baseline","central")
 	  .text(this.runner);
 	
 	// create paths
-	exa.selectAll("g.dblArc")
+	dbl.selectAll("g.dblArc")
 		.data(this._arcs(this.originDataset,this.originDataset))
 		.enter().append("svg:g")
 		.attr("class","dblArc")
 		.attr("transform","translate("+this.rOuter+","+this.rOuter+")")
 		.append("svg:path")
-		.attr("fill",function(d,i){return DataViz.saddleCloth(self.type,i)})
 		.attr("d",d3.svg.arc())
-		.attr("id",function(d,i){return i});
+		.attr("id",function(d,i){return i})
+		.style("fill",function(d,i){return DataViz.saddleCloth(self.type,i)});
 }
 
 // trigger full animation sequence (fracture -> shuffle -> reunite)
@@ -135,7 +153,7 @@ DoubleDonut.prototype._fullAnimate = function() {
 	function fracture(d,i) {
 		d3.select(this)
 			.transition().duration(500)
-			.attrTween("d",tween(radiusMod()))
+			.attrTween("d",self._tween(radiusMod()))
 			.each("end",shuffle);
 	}
 
@@ -143,7 +161,7 @@ DoubleDonut.prototype._fullAnimate = function() {
 	function shuffle(d,i) {
 		d3.select(this)
 			.transition().duration(500)
-			.attrTween("d",tween({
+			.attrTween("d",self._tween({
 				startAngle: d.next.startAngle,
 				endAngle: d.next.endAngle
 			}))
@@ -154,7 +172,7 @@ DoubleDonut.prototype._fullAnimate = function() {
 	function reunite(d,i) {
 		d3.select(this)
 			.transition().duration(500)
-			.attrTween("d",tween({
+			.attrTween("d",self._tween({
 				innerRadius: self.rInner,
 				outerRadius: self.rOuter
 			}));
@@ -174,32 +192,21 @@ DoubleDonut.prototype._fullAnimate = function() {
 		}
 	}
 	
-	// animation tweening
-	function tween(b) {
-		return function(a) {
-			var i = d3.interpolate(a,b);
-			for (var key in b) a[key] = b[key];
-			return function(t) {
-				return d3.svg.arc()(i(t));
-			}
-		}
-	}
-	
 	// focussed-runner animation definition
 	function focussedRunnerAnimate() {
 		// morph circle fill
 		d3.selectAll("circle.dblCircle").transition().duration(1500)
-			.attr("fill",function(){return DataViz.saddleCloth(self.type,self.runner)});
+			.style("fill",function(){return DataViz.saddleCloth(self.type,self.runner)});
 		// animate text: fade out -> change content and fill -> fade in
 		d3.selectAll("text.dblText").transition().duration(700)
-			.attr("opacity",0)
+			.style("opacity",0)
 			.each("end",function() {
 				d3.select(this).transition().duration(100)
-					.attr("fill",function(d,i){return DataViz.saddleClothText(self.type,self.runner)})
+					.style("fill",function(d,i){return DataViz.saddleClothText(self.type,self.runner)})
 					.text(self.runner)
 					.each("end",function() {
 						d3.select(this).transition().duration(700)
-							.attr("opacity",1);
+							.style("opacity",1);
 					});
 			});
 	}
@@ -220,20 +227,20 @@ DoubleDonut.prototype._partialAnimate = function() {
 	function reposition(d,i) {
 		d3.select(this)
 			.transition().duration(500)
-			.attrTween("d",tween({
+			.attrTween("d",self._tween({
 				startAngle: d.next.startAngle,
 				endAngle: d.next.endAngle
 			}));
 	}
-	
-	// animation tweening
-	function tween(b) {
-		return function(a) {
-			var i = d3.interpolate(a,b);
-			for (var key in b) a[key] = b[key];
-			return function(t) {
-				return d3.svg.arc()(i(t));
-			}
+}
+
+// animation tweening
+DoubleDonut.prototype._tween = function(b) {
+	return function(a) {
+		var i = d3.interpolate(a,b);
+		for (var key in b) a[key] = b[key];
+		return function(t) {
+			return d3.svg.arc()(i(t));
 		}
 	}
 }
@@ -276,6 +283,6 @@ DoubleDonut.prototype._status = function(e) {
 		data: this.data,
 		error: e,
 		lastUpdated: this.lastUpdated,
-		status: (e ? false : true)
+		runner: this.runner
 	}
 }

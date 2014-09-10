@@ -7,16 +7,17 @@ var DataViz = {
 		try {
 			if (DataViz.INSTANCES[options["name"]]) throw "Visualisation already initialised with name: "+options["name"];
 			switch (viz) {
-				case "ExactaDonut" : DataViz.INSTANCES[options["name"]] = new ExactaDonut(options); break;
-				case "DoubleDonut" : DataViz.INSTANCES[options["name"]] = new DoubleDonut(options); break;
-				case "OddsTracker" : DataViz.INSTANCES[options["name"]] = new OddsTracker(options); break;
-				case "DistributionTracker" : DataViz.INSTANCES[options["name"]] = new DistributionTracker(options); break;
-				case "FormComparison" : DataViz.INSTANCES[options["name"]] = new FormComparison(options); break;
-				case "ProfitAndLoss" : DataViz.INSTANCES[options["name"]] = new ProfitAndLoss(options); break;
+				case "ExactaDonut" : DataViz.INSTANCES[options["name"]] = new ExactaDonut(); break;
+				case "DoubleDonut" : DataViz.INSTANCES[options["name"]] = new DoubleDonut(); break;
+				case "OddsTracker" : DataViz.INSTANCES[options["name"]] = new OddsTracker(); break;
+				case "DistributionTracker" : DataViz.INSTANCES[options["name"]] = new DistributionTracker(); break;
+				case "FormComparison" : DataViz.INSTANCES[options["name"]] = new FormComparison(); break;
+				case "ProfitAndLoss" : DataViz.INSTANCES[options["name"]] = new ProfitAndLoss(); break;
+				default : throw "Could not find viz of type "+viz; break;
 			}
-			return [true,null];
+			return DataViz.INSTANCES[options["name"]].start(options);
 		} catch(e) {
-			return [false,e];
+			return {error: e};
 		}
 	},
 	
@@ -133,4 +134,12 @@ var DataViz = {
 		}
 		return code;
 	}
+}
+
+Object.size = function(obj) {
+	var size = 0, key;
+	for (key in obj) {
+		if (obj.hasOwnProperty(key)) size++;
+	}
+	return size;
 }
