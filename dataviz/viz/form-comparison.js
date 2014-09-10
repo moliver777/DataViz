@@ -29,14 +29,18 @@ FormComparison.prototype.start = function(options) {
 // Change focussed runner A
 // Returns status object including details for focussed runners
 FormComparison.prototype.changeA = function(programNumber) {
-	//TODO
+	this.runnerA = this.data[programNumber];
+	this.runnerADataset = this._dataset("A");
+	this._animate("A");
 	return this._status();
 }
 
 // Change focussed runner B
 // Returns status object including details for focussed runners
 FormComparison.prototype.changeB = function(programNumber) {
-	// TODO
+	this.runnerB = this.data[programNumber];
+	this.runnerBDataset = this._dataset("B");
+	this._animate("B");
 	return this._status();
 }
 
@@ -203,8 +207,8 @@ FormComparison.prototype._build = function() {
 			.attr("id",function(d,i){return "resulta"+self.name+i})
 			.attr("cx",function(d,i){return self.x(i)})
 			.attr("cy",function(d){return self.y(d)})
-			.attr("fill",function(){return DataViz.saddleCloth(self.type,self.runnerA.bettingInterestNumber)})
-			.attr("stroke",function(){
+			.style("fill",function(){return DataViz.saddleCloth(self.type,self.runnerA.bettingInterestNumber)})
+			.style("stroke",function(){
 				return (DataViz.saddleCloth(self.type,self.runnerA.bettingInterestNumber) == "#FFFFFF") ?
 					"#000000" :
 						DataViz.saddleCloth(self.type,self.runnerA.bettingInterestNumber);
@@ -216,8 +220,8 @@ FormComparison.prototype._build = function() {
 			.attr("id",function(d,i) { return "resultb"+self.name+i; })
 			.attr("cx",function(d,i) { return self.x(i) })
 			.attr("cy",function(d){return self.y(d)})
-			.attr("fill",function(){return DataViz.saddleCloth(self.type,self.runnerB.bettingInterestNumber)})
-			.attr("stroke",function(){
+			.style("fill",function(){return DataViz.saddleCloth(self.type,self.runnerB.bettingInterestNumber)})
+			.style("stroke",function(){
 				return (DataViz.saddleCloth(self.type,self.runnerB.bettingInterestNumber) == "#FFFFFF") ?
 					"#000000" :
 						DataViz.saddleCloth(self.type,self.runnerB.bettingInterestNumber);
@@ -254,6 +258,53 @@ FormComparison.prototype._build = function() {
 		});
 }
 
+FormComparison.prototype._animate = function(side) {
+	var self = this;
+	var column = side.toLowerCase();
+	var runner = ((side == "A") ? this.runnerA : this.runnerB);
+	var dataset = ((side == "A") ? this.runnerADataset : this.runnerBDataset);
+	var com = d3.select("g#comparisonG"+this.name);
+	
+	// reposition form elements
+	com.selectAll("circle.r"+column+this.name)
+			.data(dataset)
+		.transition()
+			.duration(1000)
+			.attr("cy",function(d){return self.y(d)})
+			.style("fill",function(){return DataViz.saddleCloth(self.type,runner.bettingInterestNumber)})
+			.style("stroke",function(){
+				return (DataViz.saddleCloth(self.type,runner.bettingInterestNumber) == "#FFFFFF") ?
+					"#000000" :
+						DataViz.saddleCloth(self.type,runner.bettingInterestNumber);
+			});
+	
+	// reposition connector lines
+	com.selectAll("line.connector.r"+column+this.name)
+			.data(dataset.slice(0,dataset.length-1))
+		.transition()
+			.duration(1000)
+			.attr("y1",function(d){return self.y(d)})
+			.attr("y2",function(d,i){return self.y(dataset[i+1])})
+			.style("stroke",function(){
+				return (DataViz.saddleCloth(self.type,runner.bettingInterestNumber) == "#FFFFFF" ?
+					"#000000" :
+						DataViz.saddleCloth(self.type,runner.bettingInterestNumber))
+			});
+	
+	// reposition average line
+	com.select("line#average"+column+this.name)
+		.transition()
+			.delay(500)
+			.duration(500)
+			.attr("y1",function(){return self.y(self._average(side))})
+			.attr("y2",function(){return self.y(self._average(side))})
+			.style("stroke",function(){
+				return (DataViz.saddleCloth(self.type,runner.bettingInterestNumber) == "#FFFFFF" ?
+					"#000000" :
+						DataViz.saddleCloth(self.type,runner.bettingInterestNumber))
+			});
+}
+
 FormComparison.prototype._average = function(side) {
 	var result = 0;
 	var ignore = 0;
@@ -276,7 +327,7 @@ FormComparison.prototype._dataset = function(side) {
 	return dataset;
 }
 
-FormComparison.prototype._status = function() {
+FormComparison.prototype._status = function(e) {
 	return {
 		data: this.data,
 		error: e,
