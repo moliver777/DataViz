@@ -71,8 +71,8 @@ FormComparison.prototype._init = function(options) {
 	this.lastUpdated = new Date();
 	
 	// axis definitions
-	this.x = d3.scale.linear().domain([0, this.formLength-1]).range([0, this.width]);
-	this.y = d3.scale.linear().domain([0, 11]).range([this.height,0]);
+	this.x = d3.scale.linear().domain([0,this.formLength-1]).range([0,this.width]);
+	this.y = d3.scale.linear().domain([0,11]).range([this.height,0]);
 	
 	// form scoring definition
 	this.scoring = {
