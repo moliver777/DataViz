@@ -73,6 +73,7 @@ ExactaDonut.prototype._init = function(options) {
 }
 
 ExactaDonut.prototype._teardown = function() {
+  this.name = null;
 	this.container = null;
 	this.height = null;
 	this.width = null;

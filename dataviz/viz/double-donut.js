@@ -75,6 +75,7 @@ DoubleDonut.prototype._init = function(options) {
 }
 
 DoubleDonut.prototype._teardown = function() {
+  this.name = null;
 	this.container = null;
 	this.height = null;
 	this.width = null;

@@ -10,15 +10,15 @@ FormComparison.prototype.start = function(options) {
 		if (!(typeof options["container"]) === "string" || options["container"].length < 1) throw "Viz requires a container";
 		if (!$("#"+options["container"])[0]) throw "Container with id #"+options["container"]+" could not be found";
 		if (!(typeof options["type"] === "string") || options["type"].length < 1) throw "Viz requires a race type (THOROUGHBRED, etc)";
-		if (isNaN(parseInt(options["formLength"])) || parseInt(options["formLength"]) < 3) throw "Viz requires formLength >= 3"
-		if (!(options["data"] instanceof Object) || Object.size(options["data"]) < 2) throw "Viz requires a data Object with at least 2 runners"
-		if (!(options["labels"] instanceof Array) || options["labels"].length >= 12) options["labels"] = ["N/A","PFU","10th+","9th","8th","7th","6th","5th","4th","3rd","2nd","1st"]
+		if (isNaN(parseInt(options["formLength"])) || parseInt(options["formLength"]) < 3) throw "Viz requires formLength >= 3";
+		if (!(options["data"] instanceof Object) || Object.size(options["data"]) < 2) throw "Viz requires a data Object with at least 2 runners";
+		if (!(options["labels"] instanceof Array) || options["labels"].length >= 12) options["labels"] = ["N/A","PFU","10th+","9th","8th","7th","6th","5th","4th","3rd","2nd","1st"];
 		if (isNaN(parseInt(options["xLabelSpacing"]))) options["xLabelSpacing"] = 30;
 		if (isNaN(parseInt(options["yLabelSpacing"]))) options["yLabelSpacing"] = 60;
 		if (isNaN(parseInt(options["fontSize"]))) options["fontSize"] = 12;
 		if (isNaN(parseInt(options["radius"]))) options["radius"] = 3;
 		if (isNaN(parseInt(options["stroke"]))) options["stroke"] = 2;
-		options["labels"].splice(12,options["labels"].length-12)
+		options["labels"].splice(12,options["labels"].length-12);
 		this._init(options);
 		return {};
 	} catch(e) {

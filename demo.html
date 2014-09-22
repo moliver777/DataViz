@@ -20,13 +20,18 @@
 			}
 		</style>
 		<!-- DATAVIZ PLUGIN CONTENT -->
-		<script src="dataviz/lib/_modernizr.js"></script>
+    <!-- LIB -->
+    <script src="dataviz/lib/_modernizr.js"></script>
 		<script src="dataviz/lib/d3.js"></script>
 		<script src="dataviz/lib/d3.layout.js"></script>
-		<script src="dataviz/dataviz.js"></script>
+		<script src="dataviz/lib/object.size.js"></script>
+    <!-- VIZ -->
+    <script src="dataviz/dataviz.js"></script>
 		<script src="dataviz/viz/exacta-donut.js"></script>
 		<script src="dataviz/viz/double-donut.js"></script>
 		<script src="dataviz/viz/form-comparison.js"></script>
+    <script src="dataviz/viz/odds-tracker.js"></script>
+    <script src="dataviz/viz/distribution-tracker.js"></script>
 		<!-- END -->
 	</head>
 	<body>
@@ -64,6 +69,18 @@
 			</div>
 		</div>
 		
+		<!-- ODDS TRACKER -->
+		<div id="oddsTestWrapper" class="testWrapper" style="width:500px;">
+			<div id="oddsTest" style="height:300px;width:500px;"></div>
+			<div id="oddsTestControls" class="testControls"></div>
+		</div>
+    
+		<!-- DISTRIBUTION TRACKER -->
+		<div id="distTestWrapper" class="testWrapper" style="width:500px;">
+			<div id="distTest" style="height:300px;width:500px;"></div>
+			<div id="distTestControls" class="testControls"></div>
+		</div>
+    
 	</body>
 </html>
 
@@ -136,5 +153,35 @@
 			console.log(result);
 		});
 		
+		// ODDS TRACKER
+		result = DataViz.build("OddsTracker", {
+			name: "oddsTest",
+			container: "oddsTest",
+			type: "THOROUGHBRED",
+			xLabelSpacing: 30,
+			yLabelSpacing: 60,
+			fontSize: 14,
+			radius: 4,
+			stroke: 2,
+      numRunners: 3,
+      data: [
+        (parseInt(new Date().getTime()/1000)-240):{
+          "1":2,"2":5,"3":17
+        },
+        (parseInt(new Date().getTime()/1000)-180):{
+          "1":2,"2":4,"3":12
+        },
+        (parseInt(new Date().getTime()/1000)-120):{
+          "1":2.5,"2":3.8,"3":12
+        },
+        (parseInt(new Date().getTime()/1000)-60):{
+          "1":2.5,"2":2,"3":14
+        },
+        (parseInt(new Date().getTime()/1000)):{
+          "1":4,"2":3,"3":10
+        }
+      ]
+		});
+		console.log(result);
 	});
 </script>
