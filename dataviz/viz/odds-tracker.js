@@ -27,14 +27,34 @@ OddsTracker.prototype.start = function(options) {
 
 // Toggle a dataset
 // Returns status object including details of datasets
-FormComparison.prototype.toggle = function(bettingInterestNumber) {
-  // return this._status();
+OddsTracker.prototype.toggle = function(bettingInterestNumber) {
+  var self = this;
+  try {
+		if (isNaN(parseInt(bettingInterestNumber))) throw "Selected runner does not exist";
+		if (parseInt(bettingInterestNumber) > this.numRunners) throw "Selected runner does not exist";
+		if (parseInt(bettingInterestNumber) <= 0) throw "Selected runner does not exist";
+    this.visibility[bettingInterestNumber] = !this.visibility[bettingInterestNumber];
+    var odds = d3.select("g#oddsTrackerG"+this.name)
+  	odds.selectAll("line.connector.r"+bettingInterestNumber)
+  		.transition()
+  			.duration(250)
+  			.style("opacity",function(){return self.visibility[bettingInterestNumber] ? 1 : 0});
+  	odds.selectAll("circle.node.r"+bettingInterestNumber)
+  		.transition()
+  			.duration(250)
+  			.style("opacity",function(){return self.visibility[bettingInterestNumber] ? 1 : 0});
+  	return this._status();
+  } catch (e) {
+    return this._status(e);
+  }
 }
 
 // Update datasets with latest odds
 // Returns status object including details of datasets
-FormComparison.prototype.update = function(oddsJson) {
-  // return this._status();
+OddsTracker.prototype.update = function(oddsJson) {
+  // do something with the new odds json
+  this._animate();
+  return this._status();
 }
 
 // ----------------------------- \\
@@ -57,14 +77,20 @@ OddsTracker.prototype._init = function(options) {
 	this.fontSize = options["fontSize"]+"px";
 	this.radius = parseInt(options["radius"]);
 	this.stroke = parseInt(options["stroke"]);
+  this.labels = ["5","10","15","20","25+"];
   this.labelInterval = null;
 	this.lastUpdated = new Date();
 	
+  // set all paths visible to start
+  this.visibility = new Object();
+  for (i=1; i<=this.numRunners; i++) this.visibility[i] = true;
+    
 	// axis definitions
-	this.x = d3.scale.linear().domain([0,this.formLength-1]).range([0,this.width]);
-	this.y = d3.scale.linear().domain([0,11]).range([this.height,0]);
+	this.x = d3.scale.linear().domain([0,this.data.length-1]).range([0,this.width]);
+	this.y = d3.scale.linear().domain([0,25]).range([this.height,0]);
 	
 	this._build();
+  this._intervals();
 }
 
 OddsTracker.prototype._teardown = function() {
@@ -84,354 +110,228 @@ OddsTracker.prototype._teardown = function() {
 	this.fontSize = null;
 	this.radius = null;
 	this.stroke = null;
+  this.labels = null;
   this.labelInterval = null;
 	this.lastUpdated = null;
+  this.visibility = null;
 	this.x = null;
 	this.y = null;
 }
 
 // build initial state of viz
 OddsTracker.prototype._build = function() {
-  
+  var self = this;
+  $(this.container).empty();
+
+	// create svg canvas
+	var oddsWrapper = d3.select("#"+$(this.container).attr("id"))
+		.append("svg:svg")
+		.attr("width",this.wrapperWidth)
+		.attr("height",this.wrapperHeight)
+		.attr("id","oddsTrackerSvg"+this.name);
+	
+	// create svg group with label padding
+	var odds = d3.select("svg#oddsTrackerSvg"+this.name)
+		.append("svg:g")
+		.attr("width",this.width)
+		.attr("height",this.height)
+		.attr("transform","translate(5,5)")
+		.attr("id","oddsTrackerG"+this.name);
+	
+	// x axis
+	odds.append("svg:line")
+		.attr("x1",0)
+		.attr("x2",this.width)
+		.attr("y1",this.height)
+		.attr("y2",this.height)
+		.style("stroke","#000");
+	odds.append("svg:text")
+		.attr("id","xLabel1"+this.name)
+		.attr("dx",function(){return 0})
+		.attr("dy",function(){return self.height+(self.xLabelSpacing/2)})
+		.style("font-size",this.fontSize)
+		.style("fill","#000")
+		.style("text-anchor","start")
+		.style("dominant-baseline","central")
+		.text("5mins");
+	odds.append("svg:text")
+		.attr("id","xLabel2"+this.name)
+		.attr("dx",this.width)
+		.attr("dy",function(){return self.height+(self.xLabelSpacing/2)})
+		.style("font-size",this.fontSize)
+		.style("fill","#000")
+		.style("text-anchor","end")
+		.style("dominant-baseline","central")
+		.text("0mins");
+	
+	// y axis
+	odds.append("svg:line")
+		.attr("x1",this.width)
+		.attr("x2",this.width)
+		.attr("y1",0)
+		.attr("y2",this.height)
+		.style("stroke","#000");
+	odds.selectAll("text.label")
+			.data(this.labels)
+		.enter().append("svg:text")
+			.attr("class","label")
+			.attr("dx",function(){return self.width+2})
+			.attr("dy",function(d){return self.y(parseInt(d))})
+			.style("font-size",this.fontSize)
+			.style("fill","#000")
+			.style("text-anchor","left")
+			.style("dominant-baseline","central")
+			.text(function(d){return d});
+
+  // create paths
+  for (bettingInterestNumber=1; bettingInterestNumber<=this.numRunners; bettingInterestNumber++) {
+    var dataset = self._dataset(bettingInterestNumber);
+    
+    // initialise connectors
+    odds.selectAll("line.r"+bettingInterestNumber)
+        .data(dataset.slice(0,dataset.length-1))
+      .enter().append("svg:line")
+        .attr("id",function(d,i){return "connector"+bettingInterestNumber+"_"+i})
+        .attr("class",function(d,i){return "connector r"+bettingInterestNumber})
+        .attr("x1",function(d,i){return self.x(i)})
+        .attr("x2",function(d,i){return self.x(i+1)})
+        .attr("y1",function(d){return (d>25) ? self.y(25) : self.y(d)})
+        .attr("y2",function(d,i){
+          if (dataset[i+1]) {
+            return (dataset[i+1]>25) ? self.y(25) : self.y(dataset[i+1]);
+          } else {
+            return (d>25) ? self.y(25) : self.y(d);
+          }
+        })
+        .attr("value1",function(d,i){return d })
+        .attr("value2",function(d,i){return dataset[i+1] ? dataset[i+1] : d})
+        .attr("position",function(d,i){return i})
+        .style("z-index",10000)
+        .style("opacity",function(){return self.visibility[bettingInterestNumber] ? 1 : 0})
+        .style("stroke-width",this.stroke)
+  			.style("stroke",function(){
+  				return (DataViz.saddleCloth(self.type,bettingInterestNumber) == "#FFFFFF" ? 
+  					"#000000" : 
+  						DataViz.saddleCloth(self.type,bettingInterestNumber))
+  			});
+    
+    // initialise nodes
+    odds.selectAll("circle.r"+bettingInterestNumber)
+        .data(dataset)
+      .enter().append("svg:circle")
+        .attr("id",function(d,i){return "node"+bettingInterestNumber+"_"+i})
+        .attr("class","node r"+bettingInterestNumber)
+        .attr("cx",function(d,i){return self.x(i)})
+        .attr("cy",function(d){return (d>25) ? self.y(25) : self.y(d)})
+        .attr("r",this.radius)
+        .attr("value",function(d){return d})
+        .attr("position",function(d,i){return i})
+        .style("z-index",10000)
+        .style("opacity",function(){return self.visibility[bettingInterestNumber] ? 1 : 0})
+  			.style("fill",function(){return DataViz.saddleCloth(self.type,bettingInterestNumber)})
+  			.style("stroke",function(){
+  				return (DataViz.saddleCloth(self.type,bettingInterestNumber) == "#FFFFFF" ? 
+  					"#000000" : 
+  						DataViz.saddleCloth(self.type,bettingInterestNumber))
+  			});
+  }
 }
 
-OddsTracker.prototype._status = function() {
+OddsTracker.prototype._animate = function() {
+  //   try {
+  //     self.count += 1;
+  //     var chart = d3.select("#overtimeChart");
+  //     var odds_json = self.data[self.data.length-1];
+  //     var prev_odds_json = self.data[self.data.length-2];
+  //     for(r=1;r<=self.num_runners;r++) {
+  //       var jodds = odds_json[r];
+  //       var prev_odds = prev_odds_json[r];
+  //       try { odds = parseFloat(jodds["pp"]) } catch (e) { odds = 0; }
+  //       try { prev_odds = parseFloat(prev_odds["pp"]) } catch (e) { prev_odds = 0; }
+  //       odds = isNaN(odds) ? 0 : odds;
+  //
+  //       // create new connectors
+  //       chart.append("svg:line")
+  //         .attr("id", "connector"+r+"_"+self.count)
+  //         .attr("class", "connector r"+r)
+  //         .attr("x1", function() { return x(self.data.length) })
+  //         .attr("x2", function() { return x(self.data.length+1) })
+  //         .attr("y1", function() { return (odds>25) ? y(25) : y(odds) })
+  //         .attr("y2", function() { return (odds>25) ? y(25) : y(odds) })
+  //         .attr("value1", function() { return odds })
+  //         .attr("value2", function() { return odds })
+  //         .attr("position", function() { return self.data.length })
+  //         .style("z-index", 5000)
+  //         .style("stroke", function() { return (DATAVIS.saddleCloth(self.breed, r, self.country)=="#FFFFFF") ? "#000000" : DATAVIS.saddleCloth(self.breed, r, self.country) })
+  //         .style("display", function() { return self.status[r] ? 'block' : 'none' });
+  //
+  //       // create new nodes
+  //       chart.append("svg:circle")
+  //         .attr("id", "node"+r+"_"+self.count)
+  //         .attr("class", "node r"+r)
+  //         .attr("cx", function() { return x(self.data.length) })
+  //         .attr("cy", function() { return (odds>25) ? y(25) : y(odds) })
+  //         .attr("r", "2")
+  //         .attr("value", function() { return odds })
+  //         .attr("position", function() { return self.data.length-1 })
+  //         .style("z-index", 5000)
+  //         .style("fill", function() { return DATAVIS.saddleCloth(self.breed, r, self.country) })
+  //         .style("stroke", function() { return (DATAVIS.saddleCloth(self.breed, r, self.country)=="#FFFFFF") ? "#000000" : DATAVIS.saddleCloth(self.breed, r, self.country) })
+  //         .style("display", function() { return self.status[r] ? 'block' : 'none' });
+  //
+  //       chart.select("line#connector"+r+"_"+(self.count-1))
+  //         .attr("value2", function() { return odds });
+  //     }
+  //
+  //     // animate everything to new x and y positions
+  //     $.each($("#overtimeChart line.connector"), function(i,el) {
+  //       if (self.data.length==self.maxTime) $(el).attr("position", parseInt($(el).attr("position"))-1);
+  //       chart.select("#"+$(el).attr("id"))
+  //         .transition()
+  //           .duration(1000)
+  //           .attr("x1", function() { return x(parseInt($(el).attr("position"))-1) })
+  //           .attr("x2", function() { return x(parseInt($(el).attr("position"))) })
+  //           .attr("y2", function() { return (parseFloat($(el).attr("value2"))>25) ? y(25) : y(parseFloat($(el).attr("value2"))) });
+  //     })
+  //     $.each($("#overtimeChart circle.node"), function(i,el) {
+  //       if (self.data.length==self.maxTime) $(el).attr("position", parseInt($(el).attr("position"))-1);
+  //       chart.select("#"+$(el).attr("id"))
+  //         .transition()
+  //           .duration(1000)
+  //           .attr("cx", function() { return x(parseInt($(el).attr("position"))) })
+  //     })
+  //
+  //     // exit old nodes and connectors out of svg range
+  //     $('#overtimeChart circle.node[position="'+String(-1)+'"]').remove();
+  //     $('#overtimeChart line.connector[position="'+String(-1)+'"]').remove();
+  //   } catch (e) {
+  //     // console.log(e.message)
+  //   }
+}
+
+OddsTracker.prototype._intervals = function() {
+  // set up label interval
+}
+
+// build dataset
+OddsTracker.prototype._dataset = function(bettingInterestNumber) {
+	var self = this;
+	var dataset = new Array();
+	// build target dataset for animation of viz
+	if (this.data && (this.data instanceof Array)) {
+    $.each(this.data, function(i,history) {
+      var odds = parseFloat(history.odds[bettingInterestNumber]);
+      if (isNaN(odds)) odds = 0; // rescue NaN values
+      dataset.push(odds);
+    });
+	}
+	return dataset;
+}
+
+OddsTracker.prototype._status = function(e) {
 	return {
 		data: this.data,
 		error: e,
 		lastUpdated: this.lastUpdated
 	}
 }
-
-
-
-
-
-
-// OvtGraph = function(container, options) {
-//   this.init(container, options);
-// }
-// jQuery.extend(OvtGraph.prototype, {
-//   init: function(container, options) {
-//     this.container = container;
-//     this.data = [];
-//     this.num_runners = options['num_runners'];
-//     this.country = options['country'];
-//     this.breed = options['breed'];
-//     this.status = {};
-//     this.count = null;
-//     this.maxTime = 31;
-//     this.pool_id = options['subscription']
-//     this.label_updater = null;
-//     this.sub = null;
-//
-//     var self = this;
-//     $.getJSON("/datavis/load_odds_history/"+this.pool_id, function(data) {
-//       self.data = data;
-//       $.each(self.data, function(i,data) {
-//         self.data[i]["created_at"] -= Math.floor(+new Date()/60000);
-//       })
-//       if (self.data.length == 1) self.data[1] = self.data[0];
-//       self.count = self.data.length-1;
-//       if (options['subscription']) self.subscribe(options['subscription']);
-//       self.setup();
-//     })
-//   },
-//
-//   teardown: function() {
-//     if (this.sub) this.sub.cancel();
-//     clearInterval(this.label_updater);
-//     this.container = null;
-//     this.data = null;
-//     this.num_runners = null;
-//     this.country = null;
-//     this.breed = null;
-//     this.status = null;
-//     this.count = null;
-//     this.maxTime = null;
-//     this.pool_id = null;
-//     this.label_updater = null;
-//     this.sub = null;
-//   },
-//
-//   setup: function() {
-//     var self = this;
-//
-//     this.label_updater = setInterval(function() { self.setLabels() }, 500);
-//
-//     $.each($('div#overtime_key span.box'), function(i,key) {
-//       $(this).css({'color': DATAVIS.saddleClothText(self.breed, $(this).parent().parent().attr('betting_interest_number')), 'background-color': DATAVIS.saddleCloth(self.breed, $(this).parent().parent().attr('betting_interest_number'), self.country)});
-//     })
-//
-//     if (this.breed == 'GREYHOUND') {
-//       if (navigator.userAgent.match(/Firefox/)) {
-//         $('div#overtime_key li[betting_interest_number="7"] span.box').css({'background-image': '-moz-linear-gradient(rgba(255, 255, 255, 1) 50%, transparent 50%, transparent)'});
-//         $('div#overtime_key li[betting_interest_number="8"] span.box').css({'background-image': '-moz-linear-gradient(360deg, rgba(0, 0, 0, 1) 50%, transparent 50%, transparent)'});
-//       } else {
-//         $('div#overtime_key li[betting_interest_number="7"] span.box').css({'background-image': '-webkit-gradient(linear, 0 0, 0 100%, color-stop(.5, rgba(255, 255, 255, 1)), color-stop(.5, transparent), to(transparent))'});
-//         $('div#overtime_key li[betting_interest_number="8"] span.box').css({'background-image': '-webkit-gradient(linear, 0 0, 100% 0, color-stop(.5, rgba(0, 0, 0, 1)), color-stop(.5, transparent), to(transparent))'});
-//       }
-//     } else if (this.breed == 'HARNESS') {
-//       if (navigator.userAgent.match(/Firefox/)) {
-//         $('div#overtime_key li[betting_interest_number="10"] span.box').css({'background-image': '-moz-linear-gradient(-45deg, rgba(0, 0, 208, 1) 50%, transparent 50%, transparent)'});
-//       } else {
-//         $('div#overtime_key li[betting_interest_number="10"] span.box').css({'background-image': '-webkit-gradient(linear, 0 0, 100% 100%, color-stop(.5, rgba(0, 0, 208, 1)), color-stop(.5, transparent), to(transparent))'});
-//       }
-//     }
-//
-//     $.each($('div#overtime_key ul li'), function(i,key) {
-//       self.status[$(key).attr('betting_interest_number')] = $(key).find('a').first().hasClass('selected') ? true : false;
-//       $(key).unbind('click').click(function() {
-//         var el = $(this).find('a').first();
-//         self.status[$(this).attr('betting_interest_number')] = $(el).hasClass('selected') ? false : true;
-//         $('div#overtime_key ul li[betting_interest_number="'+$(this).attr('betting_interest_number')+'"] a').toggleClass('selected');
-//         if (self.status[$(this).attr('betting_interest_number')]) {
-//           $('.node.r'+$(this).attr('betting_interest_number')).show();
-//           $('.connector.r'+$(this).attr('betting_interest_number')).show();
-//         } else {
-//           $('.node.r'+$(this).attr('betting_interest_number')).hide();
-//           $('.connector.r'+$(this).attr('betting_interest_number')).hide();
-//         }
-//       })
-//     })
-//
-//     this.setLabels();
-//     this.build();
-//   },
-//
-//   build: function(update) {
-//     var self = this;
-//     var runner = [];
-//     var xMax = (this.data.length == this.maxTime) ? this.data.length-2 : this.data.length-1;
-//     var yMax = 25;
-//
-//     // linear scales for axis
-//     var x = d3.scale.linear()
-//       .domain([0, xMax])
-//       .range([0, 450]);
-//     var y = d3.scale.linear()
-//       .domain([0, yMax])
-//       .range([220, 0]);
-//
-//     if (update != undefined) {
-//       animate();
-//       this.setLabels();
-//       return;
-//     }
-//
-//     $(this.container).empty();
-//
-//     var container = d3.select("#"+$(this.container).attr("id"))
-//       .append("svg:svg")
-//       .attr("width", 450)
-//       .attr("height", 280)
-//       .attr("id","overtimeSvg");
-//
-//     var chart = d3.select("svg#overtimeSvg")
-//       .append("svg:g")
-//       .attr("id", "overtimeChart")
-//       .attr("width", 450)
-//       .attr("height", 220);
-//
-//     // x axis
-//     container.append("svg:line")
-//       .attr("x1", 0)
-//       .attr("x2", 450)
-//       .attr("y1", 220)
-//       .attr("y2", 220)
-//       .style("stroke", "#000");
-//
-//     // y axis
-//     container.append("svg:line")
-//       .attr("x1", 450)
-//       .attr("x2", 450)
-//       .attr("y1", 0)
-//       .attr("y2", 220)
-//       .attr("transform", "translate(-1,0)")
-//       .style("stroke", "#000");
-//
-//     // create paths
-//     try {
-//       for(r=1;r<=self.num_runners;r++) {
-//         var runner = [];
-//         $.each(this.data, function(j,odds_json) {
-//           var jodds = odds_json[r];
-//           try { odds = parseFloat(jodds["pp"]) } catch (e) { odds = 0; }
-//           odds = isNaN(odds) ? 0 : odds;
-//           runner.push(odds);
-//         })
-//
-//         // initialise connectors
-//         chart.selectAll("line.r"+r)
-//             .data(runner)
-//           .enter().append("svg:line")
-//             .attr("id", function(d,i) { return "connector"+r+"_"+i })
-//             .attr("class", function(d,i) { return "connector r"+r })
-//             .attr("x1", function(d,i) { return x(i) })
-//             .attr("x2", function(d,i) { return x(i+1) })
-//             .attr("y1", function(d) { return (d>25) ? y(25) : y(d) })
-//             .attr("y2", function(d,i) { if (runner[i+1]) { return (runner[i+1]>25) ? y(25) : y(runner[i+1]) } else { return (d>25) ? y(25) : y(d) } })
-//             .attr("value1", function(d,i) { return d })
-//             .attr("value2", function(d,i) { return runner[i+1] ? runner[i+1] : d })
-//             .attr("position", function(d,i) { return i+1 })
-//             .style("z-index", 10000)
-//             .style("stroke", function() { return (DATAVIS.saddleCloth(self.breed, r, self.country)=="#FFFFFF") ? "#000000" : DATAVIS.saddleCloth(self.breed, r, self.country) })
-//             .style("display", function() { return self.status[r] ? 'block' : 'none' });
-//
-//         // initialise nodes
-//         chart.selectAll("circle.r"+r)
-//             .data(runner)
-//           .enter().append("svg:circle")
-//             .attr("id", function(d,i) { return "node"+r+"_"+i })
-//             .attr("class", "node r"+r)
-//             .attr("cx", function(d,i) { return x(i) })
-//             .attr("cy", function(d) { return (d>25) ? y(25) : y(d) })
-//             .attr("r", "2")
-//             .attr("value", function(d) { return d })
-//             .attr("position", function(d,i) { return i })
-//             .style("z-index", 10000)
-//             .style("fill", function() { return DATAVIS.saddleCloth(self.breed, r, self.country) })
-//             .style("stroke", function() { return (DATAVIS.saddleCloth(self.breed, r, self.country)=="#FFFFFF") ? "#000000" : DATAVIS.saddleCloth(self.breed, r, self.country) })
-//             .style("display", function() { return self.status[r] ? 'block' : 'none' });
-//       }
-//     } catch (e) {
-//       // console.log(e.message)
-//     }
-//
-//     function animate() {
-//       try {
-//         self.count += 1;
-//         var chart = d3.select("#overtimeChart");
-//         var odds_json = self.data[self.data.length-1];
-//         var prev_odds_json = self.data[self.data.length-2];
-//         for(r=1;r<=self.num_runners;r++) {
-//           var jodds = odds_json[r];
-//           var prev_odds = prev_odds_json[r];
-//           try { odds = parseFloat(jodds["pp"]) } catch (e) { odds = 0; }
-//           try { prev_odds = parseFloat(prev_odds["pp"]) } catch (e) { prev_odds = 0; }
-//           odds = isNaN(odds) ? 0 : odds;
-//
-//           // create new connectors
-//           chart.append("svg:line")
-//             .attr("id", "connector"+r+"_"+self.count)
-//             .attr("class", "connector r"+r)
-//             .attr("x1", function() { return x(self.data.length) })
-//             .attr("x2", function() { return x(self.data.length+1) })
-//             .attr("y1", function() { return (odds>25) ? y(25) : y(odds) })
-//             .attr("y2", function() { return (odds>25) ? y(25) : y(odds) })
-//             .attr("value1", function() { return odds })
-//             .attr("value2", function() { return odds })
-//             .attr("position", function() { return self.data.length })
-//             .style("z-index", 5000)
-//             .style("stroke", function() { return (DATAVIS.saddleCloth(self.breed, r, self.country)=="#FFFFFF") ? "#000000" : DATAVIS.saddleCloth(self.breed, r, self.country) })
-//             .style("display", function() { return self.status[r] ? 'block' : 'none' });
-//
-//           // create new nodes
-//           chart.append("svg:circle")
-//             .attr("id", "node"+r+"_"+self.count)
-//             .attr("class", "node r"+r)
-//             .attr("cx", function() { return x(self.data.length) })
-//             .attr("cy", function() { return (odds>25) ? y(25) : y(odds) })
-//             .attr("r", "2")
-//             .attr("value", function() { return odds })
-//             .attr("position", function() { return self.data.length-1 })
-//             .style("z-index", 5000)
-//             .style("fill", function() { return DATAVIS.saddleCloth(self.breed, r, self.country) })
-//             .style("stroke", function() { return (DATAVIS.saddleCloth(self.breed, r, self.country)=="#FFFFFF") ? "#000000" : DATAVIS.saddleCloth(self.breed, r, self.country) })
-//             .style("display", function() { return self.status[r] ? 'block' : 'none' });
-//
-//           chart.select("line#connector"+r+"_"+(self.count-1))
-//             .attr("value2", function() { return odds });
-//         }
-//
-//         // animate everything to new x and y positions
-//         $.each($("#overtimeChart line.connector"), function(i,el) {
-//           if (self.data.length==self.maxTime) $(el).attr("position", parseInt($(el).attr("position"))-1);
-//           chart.select("#"+$(el).attr("id"))
-//             .transition()
-//               .duration(1000)
-//               .attr("x1", function() { return x(parseInt($(el).attr("position"))-1) })
-//               .attr("x2", function() { return x(parseInt($(el).attr("position"))) })
-//               .attr("y2", function() { return (parseFloat($(el).attr("value2"))>25) ? y(25) : y(parseFloat($(el).attr("value2"))) });
-//         })
-//         $.each($("#overtimeChart circle.node"), function(i,el) {
-//           if (self.data.length==self.maxTime) $(el).attr("position", parseInt($(el).attr("position"))-1);
-//           chart.select("#"+$(el).attr("id"))
-//             .transition()
-//               .duration(1000)
-//               .attr("cx", function() { return x(parseInt($(el).attr("position"))) })
-//         })
-//
-//         // exit old nodes and connectors out of svg range
-//         $('#overtimeChart circle.node[position="'+String(-1)+'"]').remove();
-//         $('#overtimeChart line.connector[position="'+String(-1)+'"]').remove();
-//
-//         // tooltip
-//         $.each($('svg#overtimeSvg circle'), function(i,path) {
-//           $(path).unbind('mouseenter').mouseenter(function(e) {
-//             var stamp = new Date(self.data[$(path).attr('position')].created_at);
-//             var now = new Date();
-//             var time = Math.round((now.getTime()-stamp.getTime())/(1000*60));
-//             $('#ovtTooltip').html(time+' mins: '+$(path).attr('value'));
-//             $('#ovtTooltip').css({left:e.pageX-$(this).parents('div.datavisPanel').offset().left+20, top:e.pageY-$(this).parents('div.datavisPanel').offset().top+30});
-//             if (!$('#ovtTooltip').is(':visible')) $('#ovtTooltip').fadeIn(100);
-//           }).unbind('mousemove').mousemove(function(e) {
-//             $('#ovtTooltip').css({left:e.pageX-$(this).parents('div.datavisPanel').offset().left+20, top:e.pageY-$(this).parents('div.datavisPanel').offset().top+30});
-//           }).unbind('mouseleave').mouseleave(function() {
-//             $('#ovtTooltip').fadeOut(100);
-//           })
-//         })
-//       } catch (e) {
-//         // console.log(e.message)
-//       }
-//     }
-//
-//     // tooltip
-//     $.each($('svg#overtimeSvg circle'), function(i,path) {
-//       $(path).mouseenter(function(e) {
-//         var stamp = self.data[$(path).attr('position')].created_at;
-//         var now = Math.floor(+new Date()/60000);
-//         var time = now+stamp;
-//         $('#ovtTooltip').html(time+' mins: '+$(path).attr('value'));
-//         $('#ovtTooltip').css({left:e.pageX-$(this).parents('div.datavisPanel').offset().left+20, top:e.pageY-$(this).parents('div.datavisPanel').offset().top+30});
-//         if (!$('#ovtTooltip').is(':visible')) $('#ovtTooltip').fadeIn(100);
-//       }).mousemove(function(e) {
-//         $('#ovtTooltip').css({left:e.pageX-$(this).parents('div.datavisPanel').offset().left+20, top:e.pageY-$(this).parents('div.datavisPanel').offset().top+30});
-//       }).mouseleave(function() {
-//         $('#ovtTooltip').fadeOut(100);
-//       })
-//     })
-//   },
-//
-//   setLabels: function() {
-//     var last = this.data[0].created_at;
-//     var first = this.data[this.data.length-1].created_at;
-//     var now = Math.floor(+new Date()/60000);
-//     $('span#ovt_time_last').html((now+last)+"mins");
-//     $('span#ovt_time_first').html((now+first)+"mins");
-//   },
-//
-//   subscribe: function(id) {
-//     var self = this;
-//     var timeout = 0;
-//
-//     var myInterval = setInterval(function() {
-//       if (window.app.faye) {
-//         if (window.app.faye.client) {
-//           clearInterval(myInterval);
-//           self.sub = window.app.faye.client.subscribe('/odds_history/'+id, function(message) { self.update(message) });
-//         }
-//       } else if (timeout > 50) {
-//         clearInterval(myInterval);
-//       }
-//       timeout++;
-//     }, 100);
-//   },
-//
-//   update: function(message) {
-//     if (this.data.length==this.maxTime) this.data.splice(0,1);
-//     message['created_at'] = Math.floor(+new Date()/60000)*-1;
-//     this.data.push(message);
-//     this.build(true);
-//   }
-// });

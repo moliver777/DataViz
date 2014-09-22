@@ -29,19 +29,35 @@ FormComparison.prototype.start = function(options) {
 // Change focussed runner A
 // Returns status object including details for focussed runners
 FormComparison.prototype.changeA = function(programNumber) {
-	this.runnerA = this.data[programNumber];
-	this.runnerADataset = this._dataset("A");
-	this._animate("A");
-	return this._status();
+  try {
+    if (this.runnerA === this.data[programNumber]) throw "Focussed runner is same as selected runner";
+		if (isNaN(parseInt(bettingInterestNumber))) throw "Selected runner does not exist";
+		if (parseInt(bettingInterestNumber) > this.numRunners) throw "Selected runner does not exist";
+		if (parseInt(bettingInterestNumber) <= 0) throw "Selected runner does not exist";
+  	this.runnerA = this.data[programNumber];
+  	this.runnerADataset = this._dataset("A");
+  	this._animate("A");
+  	return this._status();
+  } catch (e) {
+    return this._status(e);
+  }
 }
 
 // Change focussed runner B
 // Returns status object including details for focussed runners
 FormComparison.prototype.changeB = function(programNumber) {
-	this.runnerB = this.data[programNumber];
-	this.runnerBDataset = this._dataset("B");
-	this._animate("B");
-	return this._status();
+  try {
+    if (this.runnerB === this.data[programNumber]) throw "Focussed runner is same as selected runner";
+		if (isNaN(parseInt(bettingInterestNumber))) throw "Selected runner does not exist";
+		if (parseInt(bettingInterestNumber) > this.numRunners) throw "Selected runner does not exist";
+		if (parseInt(bettingInterestNumber) <= 0) throw "Selected runner does not exist";
+	  this.runnerB = this.data[programNumber];
+	  this.runnerBDataset = this._dataset("B");
+	  this._animate("B");
+	  return this._status();
+  } catch (e) {
+    return this._status(e);
+  }
 }
 
 // ----------------------------- \\
@@ -163,7 +179,7 @@ FormComparison.prototype._build = function() {
 			.attr("dy",function(d,i){return self.y(i)})
 			.style("font-size",this.fontSize)
 			.style("fill","#000")
-			.style("text-anchor","left")
+			.style("text-anchor","start")
 			.style("dominant-baseline","central")
 			.text(function(d){return d});
 	

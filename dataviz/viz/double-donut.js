@@ -261,7 +261,7 @@ DoubleDonut.prototype._dataset = function() {
 	}
 	dataset[0] = (this.total > 0) ? 0 : 1; // rescue for empty odds (give runner0 100% of distribution)
 	$.each(dataset, function(i,v) { if (v>0) dataset[i] = 1/v }); // invert dataset (1/v for distribution)
-	return dataset
+	return dataset;
 }
 
 // layout

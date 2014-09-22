@@ -72,7 +72,10 @@
 		<!-- ODDS TRACKER -->
 		<div id="oddsTestWrapper" class="testWrapper" style="width:500px;">
 			<div id="oddsTest" style="height:300px;width:500px;"></div>
-			<div id="oddsTestControls" class="testControls"></div>
+			<div id="oddsTestControls" class="testControls">
+				<br/>
+				<input id="oddsTestToggleInput" value="1" type="text" /><button id="oddsTestToggleSubmit">Toggle</button>
+			</div>
 		</div>
     
 		<!-- DISTRIBUTION TRACKER -->
@@ -105,6 +108,7 @@
 			console.log(result);
 		});
 		
+    
 		// DOUBLE
 		result = DataViz.build("DoubleDonut", {
 			name: "dblTest",
@@ -124,6 +128,7 @@
 			console.log(result);
 		});
 		
+    
 		// FORM COMPARISON
 		result = DataViz.build("FormComparison", {
 			name: "comTest",
@@ -153,6 +158,7 @@
 			console.log(result);
 		});
 		
+    
 		// ODDS TRACKER
 		result = DataViz.build("OddsTracker", {
 			name: "oddsTest",
@@ -165,23 +171,17 @@
 			stroke: 2,
       numRunners: 3,
       data: [
-        (parseInt(new Date().getTime()/1000)-240):{
-          "1":2,"2":5,"3":17
-        },
-        (parseInt(new Date().getTime()/1000)-180):{
-          "1":2,"2":4,"3":12
-        },
-        (parseInt(new Date().getTime()/1000)-120):{
-          "1":2.5,"2":3.8,"3":12
-        },
-        (parseInt(new Date().getTime()/1000)-60):{
-          "1":2.5,"2":2,"3":14
-        },
-        (parseInt(new Date().getTime()/1000)):{
-          "1":4,"2":3,"3":10
-        }
+        {timestamp:(parseInt(new Date().getTime()/1000)-240),odds:{"1":2,"2":5,"3":17}},
+        {timestamp:(parseInt(new Date().getTime()/1000)-180),odds:{"1":2,"2":4,"3":12}},
+        {timestamp:(parseInt(new Date().getTime()/1000)-120),odds:{"1":2.5,"2":3.8,"3":12}},
+        {timestamp:(parseInt(new Date().getTime()/1000)-60),odds:{"1":2.5,"2":2,"3":14}},
+        {timestamp:(parseInt(new Date().getTime()/1000)),odds:{"1":4,"2":3,"3":10}}
       ]
 		});
 		console.log(result);
+		$("button#oddsTestToggleSubmit").click(function() {
+			result = DataViz.INSTANCES["oddsTest"].toggle($("input#oddsTestToggleInput").val());
+			console.log(result);
+		});
 	});
 </script>
